@@ -1,0 +1,51 @@
+# Виртуальное окружение
+venv/
+env/
+ENV/
+myenv/
+
+# База данных
+*.sqlite3
+*.db
+
+# Файлы Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Медиа файлы (картинки, загруженные пользователями)
+/media/
+/mediafiles/
+
+# Статические файлы (если собираются)
+/staticfiles/
+/static/
+
+# Файлы IDE (настройки редакторов)
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Файлы с секретами
+.env
+*.env
+
+# Файлы зависимостей (их коммитим, но сам код зависимостей - нет)
+# Но pip freeze > requirements.txt мы коммитим, а папку site-packages - нет
+
+# Файлы тестовых покрытий
+.coverage
+htmlcov/
+
+# Временные файлы
+*.log
+*.tmpw. i d e a /
+
+ v e n v /
+
+ * . s q l i t e 3
+
+ _ _ p y c a c h e _ _ /
+
