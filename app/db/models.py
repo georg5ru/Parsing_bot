@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import Float
 from sqlalchemy import String
 from sqlalchemy import Boolean
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
@@ -35,6 +35,11 @@ class ParsingTask(Base):
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
 
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    videos_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    avg_interval_days: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="parsing_tasks")

@@ -121,3 +121,46 @@ async def find_active_duplicate_parsing(
         )
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
+
+
+async def get_parsing_by_id(task_id: int):
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(ParsingTask).where(ParsingTask.id == task_id)
+        )
+        return result.scalar_one_or_none()
+
+
+async def save_parsing_result(
+    task_id: int,
+    result_file_path: str,
+    summary_text: str,
+    videos_count: int,
+    avg_interval_days: float,
+):
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(ParsingTask).where(ParsingTask.id == task_id)
+        )
+        task = result.scalar_one_or_none()
+
+        if not task:
+            return None
+
+        task.result_file_path = result_file_path
+        task.summary_text = summary_text
+        task.videos_count = videos_count
+        task.avg_interval_days = avg_interval_days
+        task.status = "done"
+
+        await session.commit()
+        await session.refresh(task)
+        return task
+
+
+async def get_parsing_by_id(task_id: int):
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(ParsingTask).where(ParsingTask.id == task_id)
+        )
+        return result.scalar_one_or_none()

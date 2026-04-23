@@ -29,6 +29,7 @@ def parsing_result_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="⏳ Проверить статус")],
+            [KeyboardButton(text="📥 Скачать таблицу")],
             [KeyboardButton(text="🔍 Новый парсинг")],
             [KeyboardButton(text="⬅️ Назад")],
         ],
