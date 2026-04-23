@@ -1,33 +1,31 @@
-import os
-from dataclasses import dataclass
-
-from dotenv import load_dotenv
-
-load_dotenv()
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-@dataclass
-class Settings:
-    bot_token: str
-    admin_id: int
-    database_url: str
+class BaseConfig(BaseSettings):
+    """Базовый класс для конфигурации приложения"""
+    environment: str = Field(alias="ENV", default="tests")
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        extra="ignore",
+    )
 
 
-bot_token = os.getenv("BOT_TOKEN")
-admin_id = os.getenv("ADMIN_ID")
-database_url = os.getenv("DATABASE_URL")
+class BOT_TOKEN(BaseConfig):
+    bot_token: str = Field(alias="BOT_TOKEN")
 
-if not bot_token:
-    raise ValueError("BOT_TOKEN не найден в .env")
+class ADMIN_ID(BaseConfig):
+    admin_id: int = Field(alias="ADMIN_ID")
 
-if not admin_id:
-    raise ValueError("ADMIN_ID не найден в .env")
+class DATABASE_URL(BaseConfig):
+    database_url: str = Field(alias="DATABASE_URL")
 
-if not database_url:
-    raise ValueError("DATABASE_URL не найден в .env")
+class Config:
+    bot_token = BOT_TOKEN()
+    admin_id = ADMIN_ID()
+    database_url = DATABASE_URL()
 
-settings = Settings(
-    bot_token=bot_token,
-    admin_id=int(admin_id),
-    database_url=database_url,
-)
+settings = Config()
