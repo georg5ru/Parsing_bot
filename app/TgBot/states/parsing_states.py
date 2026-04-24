@@ -6,3 +6,4 @@ class ParsingStates(StatesGroup):
     entering_account = State()
     choosing_period = State()
     entering_custom_date = State()
+    choosing_action = State()

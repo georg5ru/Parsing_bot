@@ -457,16 +457,18 @@ class ServiceTikTokScraper:
 
     async def get_user_info(self, username):
         response = await self.api.get_user_id(username)
-        videos = response.get('videoCount')
-        likes = response.get('heart')
-        followers = response.get('followerCount')
+        data = response['userInfo']['statsV2']
+        videos = data.get('videoCount')
+        likes = data.get('heart')
+        followers = data.get('followerCount')
         user_id = await self.get_user_id(username)
         return UserChannelInfo(
-            link=f'tiktok.com/@{username}',
-            videos=videos,
-            cnt_likes=likes,
-            followers=followers,
-            user_id=user_id
+            link=f"https://www.tiktok.com/@{username}",
+            videos=videos or 0,
+            cnt_likes=likes or 0,
+            cnt_views=0,
+            followers=followers or 0,
+            user_id=user_id,
         )
 async def main():
     """

@@ -6,6 +6,9 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile, Message
 from app.TgBot.services.task_runner import process_and_notify
+from app.TgBot.services.account_info_service import get_account_info
+from app.TgBot.services.pricing_service import get_account_info_cost
+from app.TgBot.keyboards.parsing import parsing_action_keyboard
 
 from app.TgBot.keyboards.menu import main_menu_keyboard
 from app.TgBot.keyboards.parsing import (
@@ -110,11 +113,11 @@ async def parsing_enter_account(message: Message, state: FSMContext):
     normalized = normalize_account(platform, account)
 
     await state.update_data(account=normalized)
-    await state.set_state(ParsingStates.choosing_period)
+    await state.set_state(ParsingStates.choosing_action)
 
     await message.answer(
-        f"Аккаунт: {normalized}\n\nВыберите период:",
-        reply_markup=period_keyboard(),
+        f"Аккаунт: {normalized}\n\nЧто хотите сделать?",
+        reply_markup=parsing_action_keyboard(),
     )
 
 
@@ -277,3 +280,61 @@ async def download_table(message: Message, state: FSMContext):
 async def back_to_main_menu(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Главное меню:", reply_markup=main_menu_keyboard())
+
+
+@router.message(ParsingStates.choosing_action, F.text == "ℹ️ Общая информация")
+async def account_info(message: Message, state: FSMContext):
+    data = await state.get_data()
+    platform = data["platform"]
+    account = data["account"]
+
+    cost = get_account_info_cost()
+
+    if not await has_enough_coins(message.from_user.id, cost):
+        await message.answer("Недостаточно коинов.", reply_markup=main_menu_keyboard())
+        await state.clear()
+        return
+
+    await deduct_coins(
+        message.from_user.id,
+        cost,
+        description=f"Общая информация: {platform} | {account}",
+    )
+
+    info = await get_account_info(platform, account)
+
+    if not info:
+        await message.answer("Аккаунт не найден.", reply_markup=main_menu_keyboard())
+        await state.clear()
+        return
+
+    await message.answer(
+        f"ℹ️ Общая информация\n\n"
+        f"Платформа: {platform}\n"
+        f"Аккаунт: {account}\n"
+        f"Ссылка: {info.link}\n\n"
+        f"👥 Подписчики: {info.followers}\n"
+        f"🎬 Видео: {info.videos}\n"
+        f"👁 Просмотры: {info.cnt_views}\n"
+        f"❤️ Лайки: {info.cnt_likes}\n\n"
+        f"Списано коинов: {cost}",
+        reply_markup=parsing_action_keyboard(),
+    )
+
+
+@router.message(ParsingStates.choosing_action, F.text == "🎬 Парсить видео")
+async def choose_video_parsing(message: Message, state: FSMContext):
+    data = await state.get_data()
+    account = data["account"]
+
+    await state.set_state(ParsingStates.choosing_period)
+
+    await message.answer(
+        f"Аккаунт: {account}\n\nВыберите период:",
+        reply_markup=period_keyboard(),
+    )
+
+    @router.message(ParsingStates.choosing_action, F.text == "⬅️ Назад")
+    async def back_from_action(message: Message, state: FSMContext):
+        await state.set_state(ParsingStates.entering_account)
+        await message.answer("Введите @username или ссылку на аккаунт:")

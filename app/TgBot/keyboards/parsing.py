@@ -35,3 +35,13 @@ def parsing_result_keyboard() -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
     )
+
+def parsing_action_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="ℹ️ Общая информация")],
+            [KeyboardButton(text="🎬 Парсить видео")],
+            [KeyboardButton(text="⬅️ Назад")],
+        ],
+        resize_keyboard=True,
+    )

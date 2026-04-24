@@ -590,17 +590,19 @@ class ServiceYouTubeScraper:
 
     async def get_channel_info(self, username):
         username = username.replace('@', '')
-        user_id = await self.get_channel_id(username, parts='snippet,statistics')
-        response = await self.api.get_channel_details(user_id)
+        user_id = await self.get_channel_id(username)
+        response = await self.api.get_channel_details(user_id, parts='snippet,statistics')
+        response = response.get('items', [])[0]
         views = response.get("statistics", {}).get("viewCount")
         followers = response.get("statistics", {}).get("subscriberCount")
         video = response.get("statistics", {}).get("videoCount")
         return UserChannelInfo(
-            link=f'https://www.youtube.com/@{username}',
-            cnt_views=int(views),
-            followers=followers,
-            videos=video,
-            user_id=user_id
+            link=f"https://www.youtube.com/@{username}",
+            videos=int(video or 0),
+            cnt_likes=0,
+            cnt_views=int(views or 0),
+            followers=int(followers or 0),
+            user_id=user_id,
         )
 
 
