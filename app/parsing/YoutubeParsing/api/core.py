@@ -201,3 +201,16 @@ class YouTubeAPI:
         )
         return await self._make_request(request)
 
+    async def get_channel_by_handle(self, handle: str) -> Dict[str, Any]:
+        if self._youtube_api is None:
+            raise RuntimeError("YouTubeAPI must be used as an async context manager")
+
+        clean_handle = handle.strip().lstrip("@")
+
+        request = self._youtube_api.channels.list(
+            forHandle=clean_handle,
+            part="snippet,contentDetails",
+            key=self.api_key,
+        )
+
+        return await self._make_request(request)

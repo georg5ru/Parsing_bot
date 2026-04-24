@@ -9,7 +9,7 @@ myenv/
 *.db
 
 # Файлы Python
-__pycache__/
+pycache/
 *.pyc
 *.pyo
 *.pyd
@@ -48,4 +48,3 @@ htmlcov/
  * . s q l i t e 3
 
  _ _ p y c a c h e _ _ /
-

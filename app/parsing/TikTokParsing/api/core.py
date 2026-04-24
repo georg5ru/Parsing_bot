@@ -43,6 +43,7 @@ class TikTokAPI:
             timeout=self._timeout,
             proxy=self._proxy,  # None или строка вида "https://user:pass@host:port"
         )
+        print(self._proxy)
         proxy_status = f"с прокси {self._proxy}" if self._proxy else "без прокси"
         logger.info(f"TikTok API client initialized {proxy_status}")
         return self
