@@ -6,7 +6,7 @@ from pydantic import HttpUrl
 from app.parsing.TikTokParsing.api.core import TikTokAPI
 from app.services.date_service import convert_utc_to_moscow_time
 from app.parsing.errors.baseErrors import APIError
-from app.parsing.interfaces.iByUsername import UserContentInfo
+from app.parsing.interfaces.iByUsername import UserContentInfo, UserChannelInfo
 from app.parsing.services.articles_services import fetch_articles
 from app.logger.logger import get_logger
 
@@ -96,9 +96,9 @@ class ServiceTikTokScraper:
             return None
 
     async def get_tt_videos(
-        self,
-        user_id: str,
-        start_time: datetime.datetime
+            self,
+            user_id: str,
+            start_time: datetime.datetime
     ) -> List[UserContentInfo]:
         """
         Возвращает список видео пользователя TikTok, опубликованных после start_time.
@@ -120,16 +120,16 @@ class ServiceTikTokScraper:
         return "user_id" in getattr(UserContentInfo, "__fields__", {})
 
     def _build_content_info(
-        self,
-        *,
-        articles: set[str],
-        link: str,
-        views: int,
-        published: int,
-        cnt_likes: int,
-        cnt_comments: int,
-        cnt_shares: int,
-        user_id: Optional[str] = None,
+            self,
+            *,
+            articles: set[str],
+            link: str,
+            views: int,
+            published: int,
+            cnt_likes: int,
+            cnt_comments: int,
+            cnt_shares: int,
+            user_id: Optional[str] = None,
     ) -> UserContentInfo:
         data = {
             "articles": articles,
@@ -145,9 +145,9 @@ class ServiceTikTokScraper:
         return UserContentInfo(**data)
 
     async def fetch_videos(
-        self,
-        user_id: str,
-        start_time: datetime.datetime
+            self,
+            user_id: str,
+            start_time: datetime.datetime
     ) -> List[tuple[UserContentInfo, str]]:
         """
         Получает видео с учетом пагинации и времени публикации.
@@ -227,10 +227,10 @@ class ServiceTikTokScraper:
         return not video.get('isPinnedItem', False) and published <= start_time
 
     def process_video(
-        self,
-        video: dict,
-        start_time: datetime.datetime,
-        user_id: Optional[str] = None,
+            self,
+            video: dict,
+            start_time: datetime.datetime,
+            user_id: Optional[str] = None,
     ) -> Optional[UserContentInfo]:
         """
         Обрабатывает одно видео, возвращает UserContentInfo, если оно подходит.
@@ -388,10 +388,10 @@ class ServiceTikTokScraper:
         )
 
     async def get_all_links(
-        self,
-        username: str,
-        after_date: int = 0,
-        keywords: Optional[set] = None
+            self,
+            username: str,
+            after_date: int = 0,
+            keywords: Optional[set] = None
     ) -> AsyncGenerator[HttpUrl, None]:
         """
         Генератор ссылок на видео пользователя с фильтрацией
@@ -422,10 +422,10 @@ class ServiceTikTokScraper:
                 yield HttpUrl(filtered_video.link)
 
     async def get_all_info(
-        self,
-        username: str,
-        after_date: int = 0,
-        keywords: Optional[set] = None
+            self,
+            username: str,
+            after_date: int = 0,
+            keywords: Optional[set] = None
     ) -> AsyncGenerator[UserContentInfo, None]:
         """
         Генератор полной информации о видео пользователя с фильтрацией
@@ -455,7 +455,19 @@ class ServiceTikTokScraper:
             if filtered_video:
                 yield filtered_video
 
-
+    async def get_user_info(self, username):
+        response = await self.api.get_user_id(username)
+        videos = response.get('videoCount')
+        likes = response.get('heart')
+        followers = response.get('followerCount')
+        user_id = await self.get_user_id(username)
+        return UserChannelInfo(
+            link=f'tiktok.com/@{username}',
+            videos=videos,
+            cnt_likes=likes,
+            followers=followers,
+            user_id=user_id
+        )
 async def main():
     """
     Тестирование ServiceTikTokScraper.

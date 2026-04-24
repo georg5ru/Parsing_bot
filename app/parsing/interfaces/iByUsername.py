@@ -17,6 +17,16 @@ class UserContentInfo(BaseModel):
         default=None,
         description="Спец id для поиска пользователя (есть не во всех платформах)"
     )
+class UserChannelInfo(BaseModel):
+    link: str = Field(..., description="Ссылка на контент")
+    videos: int = Field(..., ge=0, description="Количество видео")
+    cnt_likes: int = Field(..., ge=0, description="Количество лайков")
+    cnt_views: int = Field(..., ge=0, description="Количество просмотров")
+    followers: int = Field(..., ge=0, description="Количество подписчиков")
+    user_id: Optional[str] = Field(
+        default=None,
+        description="Спец id для поиска пользователя (есть не во всех платформах)"
+    )
 
 
 class IByUsername(ABC):

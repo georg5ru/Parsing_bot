@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 
 from pydantic import HttpUrl
 
-from app.parsing.interfaces.iByUsername import IByUsername, UserContentInfo
+from app.parsing.interfaces.iByUsername import IByUsername, UserContentInfo, UserChannelInfo
 from app.parsing.TikTokParsing.service.TikTokService import ServiceTikTokScraper
 
 
@@ -110,6 +110,9 @@ class TiktokParserByUsername(IByUsername):
 
     async def get_user_id_from_user_name(self, user_name: str) -> str:
         return await self._service.get_user_id(user_name)
+
+    async def get_user_info(self, user_name: str) -> UserChannelInfo:
+        return await self._service.get_user_info(user_name)
 
 
 async def main():

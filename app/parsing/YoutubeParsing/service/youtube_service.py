@@ -7,7 +7,7 @@ from pydantic import HttpUrl
 from app.parsing.YoutubeParsing.api.core import YouTubeAPI
 from app.services.date_service import convert_utc_to_moscow_time, convert_iso_utc_to_moscow
 from app.parsing.errors.baseErrors import APIError
-from app.parsing.interfaces.iByUsername import UserContentInfo
+from app.parsing.interfaces.iByUsername import UserContentInfo, UserChannelInfo
 from app.parsing.services.articles_services import fetch_articles
 from app.logger.logger import get_logger
 
@@ -37,16 +37,16 @@ class ServiceYouTubeScraper:
         return "user_id" in getattr(UserContentInfo, "__fields__", {})
 
     def _build_content_info(
-        self,
-        *,
-        articles: set[str],
-        link: str,
-        views: int,
-        published: int,
-        cnt_likes: int,
-        cnt_comments: int,
-        cnt_shares: int,
-        user_id: Optional[str] = None,
+            self,
+            *,
+            articles: set[str],
+            link: str,
+            views: int,
+            published: int,
+            cnt_likes: int,
+            cnt_comments: int,
+            cnt_shares: int,
+            user_id: Optional[str] = None,
     ) -> UserContentInfo:
         data = {
             "articles": articles,
@@ -185,9 +185,9 @@ class ServiceYouTubeScraper:
             return None
 
     async def fetch_videos(
-        self, 
-        channel_id: str, 
-        start_time: datetime.datetime
+            self,
+            channel_id: str,
+            start_time: datetime.datetime
     ) -> list[tuple[UserContentInfo, str]]:
         """
         Получает все видео канала после start_time с пагинацией.
@@ -261,9 +261,9 @@ class ServiceYouTubeScraper:
         return published < start_time
 
     async def process_video(
-        self,
-        video: dict,
-        channel_id: Optional[str] = None,
+            self,
+            video: dict,
+            channel_id: Optional[str] = None,
     ) -> Optional[UserContentInfo]:
         """
         Обрабатывает одно видео, возвращает UserContentInfo.
@@ -405,9 +405,9 @@ class ServiceYouTubeScraper:
             raise
 
     async def get_content_info(
-        self,
-        user_name: str,
-        content_id: str,
+            self,
+            user_name: str,
+            content_id: str,
     ) -> UserContentInfo:
         """
         Получает полную информацию о конкретном видео.
@@ -523,10 +523,10 @@ class ServiceYouTubeScraper:
         return None
 
     async def get_all_links(
-        self, 
-        username: str, 
-        after_date: int = 0, 
-        keywords: Optional[set[str]] = None
+            self,
+            username: str,
+            after_date: int = 0,
+            keywords: Optional[set[str]] = None
     ) -> AsyncGenerator[HttpUrl, None]:
         """
         Генератор ссылок на видео пользователя с фильтрацией.
@@ -557,10 +557,10 @@ class ServiceYouTubeScraper:
                 yield HttpUrl(filtered_video.link)
 
     async def get_all_info(
-        self, 
-        username: str, 
-        after_date: int = 0, 
-        keywords: Optional[set[str]] = None
+            self,
+            username: str,
+            after_date: int = 0,
+            keywords: Optional[set[str]] = None
     ) -> AsyncGenerator[UserContentInfo, None]:
         """
         Генератор полной информации о видео пользователя с фильтрацией.
@@ -590,10 +590,25 @@ class ServiceYouTubeScraper:
             if filtered_video:
                 yield filtered_video
 
+    async def get_channel_info(self, username):
+        username = username.replace('@', '')
+        user_id = await self.get_channel_id(username, parts='snippet,statistics')
+        response = await self.api.get_channel_details(user_id)
+        views = response.get("statistics", {}).get("viewCount")
+        followers = response.get("statistics", {}).get("subscriberCount")
+        video = response.get("statistics", {}).get("videoCount")
+        return UserChannelInfo(
+            link=f'https://www.youtube.com/@{username}',
+            cnt_views=int(views),
+            followers=followers,
+            videos=video,
+            user_id=user_id
+        )
 
 
 if __name__ == "__main__":
     import asyncio
+
 
     async def test_youtube_service():
         """Тестирование основных функций YouTube сервиса"""
@@ -690,6 +705,7 @@ if __name__ == "__main__":
         print("\n" + "=" * 80)
         print("✅ ТЕСТИРОВАНИЕ ЗАВЕРШЕНО")
         print("=" * 80)
+
 
     # Запуск тестов
     asyncio.run(test_youtube_service())
