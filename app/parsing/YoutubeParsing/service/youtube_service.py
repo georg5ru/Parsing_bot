@@ -82,93 +82,88 @@ class ServiceYouTubeScraper:
             logger.info("ServiceYouTubeScraper closed")
 
     async def get_channel_id(self, username: str) -> Optional[str]:
+        clean_username = username.strip().lstrip("@").split("/")[0]
         """
-        Получает ID канала по имени пользователя.
+                Получает ID канала по имени пользователя.
 
-        Использует многоуровневую проверку:
-        1. Поиск по handle (@username)
-        2. Точное совпадение channelTitle
-        3. Проверка customUrl (если доступен)
-        4. Частичное совпадение channelTitle (fallback)
+                Использует многоуровневую проверку:
+                1. Поиск по handle (@username)
+                2. Точное совпадение channelTitle
+                3. Проверка customUrl (если доступен)
+                4. Частичное совпадение channelTitle (fallback)
 
-        Args:
-            username: Имя пользователя YouTube (с @ или без)
+                Args:
+                    username: Имя пользователя YouTube (с @ или без)
 
-        Returns:
-            Optional[str]: ID канала или None если не найден
-        """
-        # Убираем @ если есть
-        clean_username = username.lstrip('@')
-        username_lower = clean_username.lower()
+                Returns:
+                    Optional[str]: ID канала или None если не найден
+                """
+        
 
         try:
-            # Сначала пробуем поиск с handle (@username)
+            # 1. Если уже пришёл channel_id
+            if self._is_youtube_channel_id(clean_username):
+                return clean_username
+
+            # 2. Точный поиск по handle через channels.list(forHandle=...)
+            try:
+                response = await self.api.get_channel_by_handle(clean_username)
+                items = response.get("items", [])
+
+                if items:
+                    channel_id = items[0].get("id")
+                    if channel_id:
+                        logger.info(
+                            f"Найден канал по handle для {username}: {channel_id}"
+                        )
+                        return channel_id
+            except Exception as e:
+                logger.warning(
+                    f"Не удалось получить канал по handle для {username}: {e}"
+                )
+
+            # 3. Fallback: старый поиск
             search_queries = [f"@{clean_username}", clean_username]
+            username_lower = clean_username.lower()
 
             for search_query in search_queries:
                 response = await self.api.get_channel_id(search_query)
-                items = response.get('items', [])
+                items = response.get("items", [])
 
                 if not items:
                     continue
 
-                # Приоритет 1: Точное совпадение channelTitle
                 for item in items:
-                    snippet = item.get('snippet', {})
-                    channel_title = snippet.get('channelTitle', '').lower()
-                    # В Search API channelId находится в item.id.channelId
-                    channel_id = item.get('id', {}).get('channelId')
+                    channel_id = item.get("id", {}).get("channelId")
+                    snippet = item.get("snippet", {})
+                    channel_title = snippet.get("channelTitle", "").lower()
 
                     if not channel_id:
                         continue
 
-                    if channel_title == username_lower:
-                        logger.info(
-                            f"Найден канал по точному совпадению title для {username}: {channel_id}"
-                        )
-                        return channel_id
-
-                # Приоритет 2: Проверка customUrl (handle)
-                for item in items:
-                    # В Search API channelId находится в item.id.channelId
-                    channel_id = item.get('id', {}).get('channelId')
-
-                    if not channel_id:
-                        continue
-
-                    # Получаем полную информацию о канале для проверки customUrl
                     try:
-                        channel_info = await self.api.get_channel_details(channel_id, parts="snippet")
-                        if channel_info.get('items'):
-                            channel_snippet = channel_info['items'][0].get('snippet', {})
-                            custom_url = channel_snippet.get('customUrl', '')
+                        channel_info = await self.api.get_channel_details(
+                            channel_id,
+                            parts="snippet",
+                        )
+                        if channel_info.get("items"):
+                            custom_url = (
+                                channel_info["items"][0]
+                                .get("snippet", {})
+                                .get("customUrl", "")
+                                .lstrip("@")
+                                .lower()
+                            )
 
-                            # Проверяем customUrl (например, @MAConlygirl)
-                            if custom_url:
-                                custom_url_clean = custom_url.lstrip('@').lower()
-                                if custom_url_clean == username_lower:
-                                    logger.info(
-                                        f"Найден канал по customUrl для {username}: {channel_id}"
-                                    )
-                                    return channel_id
+                            if custom_url == username_lower:
+                                logger.info(
+                                    f"Найден канал по customUrl для {username}: {channel_id}"
+                                )
+                                return channel_id
                     except Exception:
-                        # Если не удалось получить детали, пропускаем
                         pass
 
-                # Приоритет 3: Частичное совпадение channelTitle (fallback)
-                for item in items:
-                    snippet = item.get('snippet', {})
-                    channel_title = snippet.get('channelTitle', '').lower()
-                    # В Search API channelId находится в item.id.channelId
-                    channel_id = item.get('id', {}).get('channelId')
-
-                    if not channel_id:
-                        continue
-
-                    if username_lower in channel_title or channel_title in username_lower:
-                        logger.info(
-                            f"Найден канал по частичному совпадению для {username}: {channel_id}"
-                        )
+                    if channel_title == username_lower:
                         return channel_id
 
             logger.warning(f"Канал не найден для пользователя {username}")
@@ -180,8 +175,11 @@ class ServiceYouTubeScraper:
                 f"[{e.platform}] {e.status_code} - {e.message}"
             )
             return None
+
         except Exception as e:
-            logger.exception(f"Неожиданная ошибка при получении channel_id для {username}: {e}")
+            logger.exception(
+                f"Неожиданная ошибка при получении channel_id для {username}: {e}"
+            )
             return None
 
     async def fetch_videos(

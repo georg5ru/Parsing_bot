@@ -25,33 +25,32 @@ def normalize_account(platform: str, value: str) -> str:
     if value.startswith("http://") or value.startswith("https://"):
         parsed = urlparse(value)
         path = parsed.path.strip("/")
+        parts = [part for part in path.split("/") if part]
 
         if platform == "TikTok":
-            # /@username
-            if path.startswith("@"):
-                return path[1:].strip().lower()
+            if parts and parts[0].startswith("@"):
+                return parts[0][1:].strip().lower()
 
-            # fallback: берём последний сегмент
-            parts = [part for part in path.split("/") if part]
             if parts:
-                last_part = parts[-1]
-                return last_part.replace("@", "").strip().lower()
+                return parts[-1].replace("@", "").strip().lower()
 
         if platform == "YouTube":
-            # /@channel
-            if path.startswith("@"):
-                return path[1:].strip().lower()
+            ignored_tabs = {"videos", "shorts", "streams", "featured", "community", "playlists"}
 
-            parts = [part for part in path.split("/") if part]
-            if parts:
-                # youtube.com/@name -> first part = @name
-                if parts[0].startswith("@"):
-                    return parts[0][1:].strip().lower()
+            if parts and parts[-1].lower() in ignored_tabs:
+                parts = parts[:-1]
 
-                # youtube.com/channel/xxx or youtube.com/c/xxx or youtube.com/user/xxx
-                if len(parts) >= 2 and parts[0] in {"channel", "c", "user"}:
-                    return parts[1].strip().lower()
+            if not parts:
+                return value.strip().lower()
 
-                return parts[-1].replace("@", "").strip().lower()
+            first = parts[0]
+
+            if first.startswith("@"):
+                return first[1:].strip().lower()
+
+            if first in {"channel", "c", "user"} and len(parts) >= 2:
+                return parts[1].strip().lower()
+
+            return first.replace("@", "").strip().lower()
 
     return value.replace("@", "").strip().lower()

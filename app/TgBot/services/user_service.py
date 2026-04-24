@@ -1,7 +1,7 @@
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.exc import IntegrityError
 
-from app.db.models import User
+from app.db.models import CoinTransaction, User
 from app.db.session import AsyncSessionLocal
 
 
@@ -42,6 +42,7 @@ async def get_or_create_user(tg_id: int, username: str | None, first_name: str |
             await session.commit()
             await session.refresh(user)
             return user
+
         except IntegrityError:
             await session.rollback()
 
@@ -73,6 +74,7 @@ async def get_balance(tg_id: int) -> int:
             select(User).where(User.tg_id == tg_id)
         )
         user = result.scalar_one_or_none()
+
         return user.coins if user else 0
 
 
@@ -91,13 +93,23 @@ async def add_coins(tg_id: int, amount: int):
                 coins=amount,
             )
             session.add(user)
+            await session.flush()
         else:
             user.coins += amount
+
+        transaction = CoinTransaction(
+            user_id=user.id,
+            amount=amount,
+            operation_type="add",
+            description="Пополнение через админку",
+        )
+        session.add(transaction)
 
         try:
             await session.commit()
             await session.refresh(user)
             return user
+
         except IntegrityError:
             await session.rollback()
 
@@ -105,9 +117,20 @@ async def add_coins(tg_id: int, amount: int):
                 select(User).where(User.tg_id == tg_id)
             )
             user = result.scalar_one()
+
             user.coins += amount
+
+            transaction = CoinTransaction(
+                user_id=user.id,
+                amount=amount,
+                operation_type="add",
+                description="Пополнение через админку",
+            )
+            session.add(transaction)
+
             await session.commit()
             await session.refresh(user)
+
             return user
 
 
@@ -116,7 +139,11 @@ async def has_enough_coins(tg_id: int, required_amount: int) -> bool:
     return balance >= required_amount
 
 
-async def deduct_coins(tg_id: int, amount: int):
+async def deduct_coins(
+    tg_id: int,
+    amount: int,
+    description: str = "Списание за парсинг",
+):
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(User).where(User.tg_id == tg_id)
@@ -127,6 +154,29 @@ async def deduct_coins(tg_id: int, amount: int):
             return None
 
         user.coins -= amount
+
+        transaction = CoinTransaction(
+            user_id=user.id,
+            amount=-amount,
+            operation_type="deduct",
+            description=description,
+        )
+        session.add(transaction)
+
         await session.commit()
         await session.refresh(user)
+
         return user
+
+
+async def get_coin_history(tg_id: int, limit: int = 10):
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(CoinTransaction)
+            .join(User, CoinTransaction.user_id == User.id)
+            .where(User.tg_id == tg_id)
+            .order_by(desc(CoinTransaction.created_at))
+            .limit(limit)
+        )
+
+        return list(result.scalars().all())
