@@ -2,13 +2,15 @@ import asyncio
 from datetime import datetime
 from aiogram import Bot
 
+
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile, Message
 from app.TgBot.services.task_runner import process_and_notify
 from app.TgBot.services.account_info_service import get_account_info
 from app.TgBot.services.pricing_service import get_account_info_cost
-from app.TgBot.keyboards.parsing import parsing_action_keyboard
+from app.TgBot.keyboards.parsing import parsing_action_keyboard, cached_result_keyboard, account_input_keyboard, \
+    parsing_wait_keyboard
 
 from app.TgBot.keyboards.menu import main_menu_keyboard
 from app.TgBot.keyboards.parsing import (
@@ -22,6 +24,7 @@ from app.TgBot.services.parsing_service import (
     find_recent_cached_parsing,
     get_last_parsing,
     process_parsing,
+    has_active_user_parsing, get_parsing_by_id,
 )
 from app.TgBot.services.pricing_service import get_start_parsing_cost
 from app.TgBot.services.user_service import (
@@ -78,7 +81,10 @@ async def back_from_account(message: Message, state: FSMContext):
 @router.message(ParsingStates.choosing_period, F.text == "⬅️ Назад")
 async def back_from_period(message: Message, state: FSMContext):
     await state.set_state(ParsingStates.entering_account)
-    await message.answer("Введите @username или ссылку на аккаунт:")
+    await message.answer(
+        "Введите @username или ссылку на аккаунт:",
+        reply_markup=account_input_keyboard(),
+    )
 
 
 @router.message(ParsingStates.entering_custom_date, F.text == "⬅️ Назад")
@@ -90,13 +96,19 @@ async def back_from_custom_date(message: Message, state: FSMContext):
 @router.message(ParsingStates.choosing_platform)
 async def parsing_choose_platform(message: Message, state: FSMContext):
     if message.text not in {"TikTok", "YouTube"}:
-        await message.answer("Пожалуйста, выберите платформу.")
+        await message.answer(
+            "Введите @username или ссылку на аккаунт:",
+            reply_markup=account_input_keyboard(),
+        )
         return
 
     await state.update_data(platform=message.text)
     await state.set_state(ParsingStates.entering_account)
 
-    await message.answer("Введите @username или ссылку на аккаунт:")
+    await message.answer(
+        "Введите @username или ссылку на аккаунт:",
+        reply_markup=account_input_keyboard(),
+    )
 
 
 @router.message(ParsingStates.entering_account)
@@ -170,13 +182,32 @@ async def parsing_choose_period(message: Message, state: FSMContext, bot: Bot):
 
         if cached:
             await state.clear()
+            await state.update_data(
+                cached_platform=platform,
+                cached_account=account,
+                cached_period=period,
+                cached_task_id=cached.id,
+            )
+
             await message.answer(
                 "Данные уже есть. Коины не списаны.",
-                reply_markup=parsing_result_keyboard(),
+                reply_markup=cached_result_keyboard(),
             )
             return
 
-    cost = get_start_parsing_cost()
+
+    active_user_task = await has_active_user_parsing(message.from_user.id)
+
+    if active_user_task:
+        await state.clear()
+        await message.answer(
+            "⏳ У вас уже идёт парсинг.\n\n"
+            "Дождитесь завершения текущего.",
+            reply_markup=parsing_result_keyboard(),
+        )
+        return
+
+    cost = await get_start_parsing_cost()
 
     if not await has_enough_coins(message.from_user.id, cost):
         await create_parsing(
@@ -218,12 +249,12 @@ async def parsing_choose_period(message: Message, state: FSMContext, bot: Bot):
         f"Период: {task.period.replace('date:', 'с ')}\n"
         f"Статус: {format_status(task.status)}\n"
         f"Списано коинов: {cost}",
-        reply_markup=parsing_result_keyboard(),
+        reply_markup=parsing_wait_keyboard(),
     )
 
 
 @router.message(ParsingStates.entering_custom_date)
-async def parsing_enter_custom_date(message: Message, state: FSMContext):
+async def parsing_enter_custom_date(message: Message, state: FSMContext, bot: Bot):
     date_text = message.text.strip()
 
     try:
@@ -235,7 +266,7 @@ async def parsing_enter_custom_date(message: Message, state: FSMContext):
     await state.update_data(custom_period=f"date:{date_text}")
     await state.set_state(ParsingStates.choosing_period)
 
-    await parsing_choose_period(message, state)
+    await parsing_choose_period(message, state, bot)
 
 
 @router.message(F.text == "⏳ Проверить статус")
@@ -288,7 +319,7 @@ async def account_info(message: Message, state: FSMContext):
     platform = data["platform"]
     account = data["account"]
 
-    cost = get_account_info_cost()
+    cost = await get_account_info_cost()
 
     if not await has_enough_coins(message.from_user.id, cost):
         await message.answer("Недостаточно коинов.", reply_markup=main_menu_keyboard())
@@ -308,16 +339,25 @@ async def account_info(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    await message.answer(
+    text = (
         f"ℹ️ Общая информация\n\n"
         f"Платформа: {platform}\n"
         f"Аккаунт: {account}\n"
         f"Ссылка: {info.link}\n\n"
         f"👥 Подписчики: {info.followers}\n"
         f"🎬 Видео: {info.videos}\n"
-        f"👁 Просмотры: {info.cnt_views}\n"
-        f"❤️ Лайки: {info.cnt_likes}\n\n"
-        f"Списано коинов: {cost}",
+    )
+
+    if platform == "YouTube":
+        text += f"👁 Просмотры: {info.cnt_views}\n"
+
+    elif platform == "TikTok":
+        text += f"❤️ Лайки: {info.cnt_likes}\n"
+
+    text += f"\nСписано коинов: {cost}"
+
+    await message.answer(
+        text,
         reply_markup=parsing_action_keyboard(),
     )
 
@@ -334,7 +374,64 @@ async def choose_video_parsing(message: Message, state: FSMContext):
         reply_markup=period_keyboard(),
     )
 
-    @router.message(ParsingStates.choosing_action, F.text == "⬅️ Назад")
-    async def back_from_action(message: Message, state: FSMContext):
-        await state.set_state(ParsingStates.entering_account)
-        await message.answer("Введите @username или ссылку на аккаунт:")
+
+@router.message(ParsingStates.choosing_action, F.text == "⬅️ Назад")
+async def back_from_action(message: Message, state: FSMContext):
+    await state.set_state(ParsingStates.entering_account)
+    await message.answer(
+        "Введите @username или ссылку на аккаунт:",
+        reply_markup=account_input_keyboard(),
+    )
+
+
+@router.message(F.text == "🔁 Запустить заново")
+async def rerun_cached_parsing(message: Message, state: FSMContext):
+    data = await state.get_data()
+
+    platform = data.get("cached_platform")
+    account = data.get("cached_account")
+    period = data.get("cached_period")
+
+    if not platform or not account or not period:
+        await message.answer("Не удалось восстановить данные парсинга.", reply_markup=main_menu_keyboard())
+        await state.clear()
+        return
+
+    await state.update_data(
+        platform=platform,
+        account=account,
+        custom_period=period if period.startswith("date:") else None,
+        force_new=True,
+    )
+
+    await state.set_state(ParsingStates.choosing_period)
+
+    fake_text = period
+    await message.answer(
+        "Запускаю новый парсинг по тем же данным...",
+        reply_markup=parsing_result_keyboard(),
+    )
+
+    message_text_backup = message.text
+    object.__setattr__(message, "text", fake_text)
+    await parsing_choose_period(message, state, message.bot)
+    object.__setattr__(message, "text", message_text_backup)
+
+
+@router.message(F.text == "📥 Скачать прошлую таблицу")
+async def download_cached_table(message: Message, state: FSMContext):
+    data = await state.get_data()
+    cached_task_id = data.get("cached_task_id")
+
+    if not cached_task_id:
+        await message.answer("Файл недоступен.", reply_markup=main_menu_keyboard())
+        return
+
+    task = await get_parsing_by_id(cached_task_id)
+
+    if not task or not task.result_file_path:
+        await message.answer("Файл недоступен.", reply_markup=main_menu_keyboard())
+        return
+
+    file = FSInputFile(task.result_file_path)
+    await message.answer_document(file, reply_markup=cached_result_keyboard())

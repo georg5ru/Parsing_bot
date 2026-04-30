@@ -5,6 +5,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from app.TgBot.services.task_runner import resume_unfinished_tasks
+from app.TgBot.handlers.admin import router as admin_router
 
 from app.config.settings import settings
 from app.db.init_db import init_db
@@ -37,7 +38,9 @@ async def main():
     dp.include_router(balance_router)
     dp.include_router(my_parsings_router)
     dp.include_router(settings_router)
+    dp.include_router(admin_router)
 
+    
     await resume_unfinished_tasks(bot)
     await dp.start_polling(bot)
 

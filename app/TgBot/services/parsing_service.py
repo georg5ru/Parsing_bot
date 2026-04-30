@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 
 from sqlalchemy import desc, select
+from app.db.models import ParsingTask, User
+from app.db.session import AsyncSessionLocal
 
 from app.db.models import ParsingTask, User
 from app.db.session import AsyncSessionLocal
@@ -72,7 +74,7 @@ async def process_parsing(task_id: int):
                 await session.refresh(task)
                 return task
 
-            max_videos = get_max_videos_limit()
+            max_videos = await get_max_videos_limit()
             data = data[:max_videos]
             count = len(data)
 
@@ -81,7 +83,7 @@ async def process_parsing(task_id: int):
             )
             user = user_result.scalar_one()
 
-            video_cost = get_video_parsing_cost(count)
+            video_cost = await get_video_parsing_cost(count)
 
             if not await has_enough_coins(user.tg_id, video_cost):
                 task.status = "failed_insufficient_funds"
@@ -282,3 +284,16 @@ async def get_unfinished_parsings():
             .where(ParsingTask.status.in_(["pending", "processing"]))
         )
         return result.all()
+
+
+async def has_active_user_parsing(tg_id: int):
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(ParsingTask)
+            .join(User, ParsingTask.user_id == User.id)
+            .where(User.tg_id == tg_id)
+            .where(ParsingTask.status.in_(["pending", "processing"]))
+            .limit(1)
+        )
+
+        return result.scalar_one_or_none()

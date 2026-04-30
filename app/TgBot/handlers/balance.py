@@ -1,8 +1,16 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
+from aiogram.types import CallbackQuery
 
 from app.config.settings import settings
+from app.TgBot.services.user_service import add_coins
+
+from app.TgBot.keyboards.coin_history_inline import (
+    coin_history_keyboard,
+    format_coin_history_page,
+)
+
 from app.TgBot.services.user_service import add_coins, get_balance, get_or_create_user
 from app.TgBot.keyboards.menu import balance_keyboard, main_menu_keyboard
 from app.TgBot.services.user_service import (
@@ -40,44 +48,74 @@ async def add_coins_handler(message: Message):
 
     parts = message.text.split()
 
-    if len(parts) != 2 or not parts[1].isdigit():
-        await message.answer("Используй: /add_coins 100")
+    if len(parts) == 2:
+        tg_id = message.from_user.id
+        amount_text = parts[1]
+
+    elif len(parts) == 3:
+        if not parts[1].isdigit():
+            await message.answer("ID пользователя должен быть числом.")
+            return
+
+        tg_id = int(parts[1])
+        amount_text = parts[2]
+
+    else:
+        await message.answer(
+            "Используй:\n"
+            "/add_coins 100 — себе\n"
+            "/add_coins 1426158670 100 — пользователю"
+        )
         return
 
-    amount = int(parts[1])
+    if not amount_text.isdigit():
+        await message.answer("Количество коинов должно быть числом.")
+        return
 
-    await add_coins(message.from_user.id, amount)
-    new_balance = await get_balance(message.from_user.id)
+    amount = int(amount_text)
+
+    if amount <= 0:
+        await message.answer("Количество коинов должно быть больше 0.")
+        return
+
+    user = await add_coins(tg_id, amount)
 
     await message.answer(
-        f"Добавлено {amount} коинов.\n"
-        f"Новый баланс: {new_balance}"
+        f"✅ Добавлено {amount} коинов.\n"
+        f"Пользователь ID: {tg_id}\n"
+        f"Новый баланс: {user.coins}"
     )
 
 
 @router.message(F.text == "🧾 История коинов")
 async def coin_history(message: Message):
-    items = await get_coin_history(message.from_user.id)
-
-    if not items:
-        await message.answer(
-            "История коинов пока пустая.",
-            reply_markup=balance_keyboard(),
-        )
-        return
-
-    lines = ["🧾 История коинов:\n"]
-
-    for item in items:
-        sign = "+" if item.amount > 0 else ""
-
-        lines.append(
-            f"{sign}{item.amount} коинов\n"
-            f"{item.description or item.operation_type}\n"
-            f"{item.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        )
+    items = await get_coin_history(message.from_user.id, limit=100)
 
     await message.answer(
-        "\n".join(lines),
-        reply_markup=balance_keyboard(),
+        format_coin_history_page(items, page=0),
+        reply_markup=coin_history_keyboard(items, page=0),
     )
+
+
+@router.callback_query(F.data.startswith("coins_page:"))
+async def coin_history_page(callback: CallbackQuery):
+    page = int(callback.data.split(":")[1])
+
+    items = await get_coin_history(callback.from_user.id, limit=100)
+
+    await callback.message.edit_text(
+        format_coin_history_page(items, page=page),
+        reply_markup=coin_history_keyboard(items, page=page),
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(F.data == "coins_back_to_menu")
+async def coins_back_to_menu(callback: CallbackQuery):
+    await callback.message.answer(
+        "Главное меню:",
+        reply_markup=main_menu_keyboard(),
+    )
+
+    await callback.answer()

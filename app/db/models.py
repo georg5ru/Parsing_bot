@@ -71,3 +71,20 @@ class CoinTransaction(Base):
         default=datetime.utcnow,
         nullable=False,
     )
+
+
+class PricingSettings(Base):
+    __tablename__ = "pricing_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    account_info_cost: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    parsing_start_cost: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+    video_cost: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    max_videos_per_parsing: Mapped[int] = mapped_column(Integer, nullable=False, default=500)
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )

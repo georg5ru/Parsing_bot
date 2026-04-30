@@ -20,6 +20,6 @@ async def cmd_start(message: Message, state: FSMContext):
     )
 
     await message.answer(
-        "Добро пожаловать в Smip_Bot 👋\n\nВыберите действие:",
+        "Добро пожаловать в SMIP Parser Bot — Telegram-бот для анализа аккаунтов TikTok и YouTube. \n\n Бот позволяет: \n 1) получать общую информацию об аккаунте; \n 2) парсить видео аккаунта за выбранный период; \n 3) выгружать результаты в CSV/Excel; \n 4) хранить историю парсингов; \n 5) автоматически учитывать стоимость операций через внутреннюю валюту (коины).",
         reply_markup=main_menu_keyboard(),
     )
